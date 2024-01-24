@@ -1,6 +1,5 @@
 import { once } from '@ember/runloop';
 import { alias } from '@ember/object/computed';
-import { computed, observer } from '@ember/object';
 import Evented from '@ember/object/evented';
 import ArrayProxy from '@ember/array/proxy';
 import PromiseProxyMixin from '@ember/object/promise-proxy-mixin';
@@ -26,19 +25,34 @@ var ExtendedArrayProxy = ArrayProxy.extend(PageMixin, Evented, ArrayProxyPromise
 
 export default class PagedRemoteArray extends ExtendedArrayProxy {
   page = 1;
+
   get paramMapping(){
     return {};
   }
-  
+
   contentUpdated = 0;
 
-  constructor () {
-    // this._super(...arguments);
-    super();
+  init() {
+    // For fix addon bug for ember 4 need next:
+    // when use constructor() you have not access to inherit properties, 
+    // use init() for getting access to properties
+    this._super(...arguments);
+
     var initCallback = this.initCallback;
     if (initCallback) {
       initCallback(this);
     }
+
+    try {
+      this.promise;
+    } catch (e) {
+      this.set('promise', this.fetchContent());
+    }
+  }
+
+  constructor () {
+    super();
+
     // Array observers are not working anymore
     /*this.addArrayObserver({
       arrayWillChange(me) {
@@ -49,12 +63,6 @@ export default class PagedRemoteArray extends ExtendedArrayProxy {
         me.trigger('contentUpdated');
       },
     });*/
-
-    try {
-      this.promise;
-    } catch (e) {
-      this.set('promise', this.fetchContent());
-    }
   }
 
   addParamMapping (key, mappedKey, mappingFunc) {
@@ -96,13 +104,11 @@ export default class PagedRemoteArray extends ExtendedArrayProxy {
     return ops;
   }
 
-  rawFindFromStore() {
-    // Store is not inherited anymore, this breaks the whole thing on ember 4
-    
+  rawFindFromStore() {    
     var store = this.store;
     var modelName = this.modelName;
 
-    var ops = this.paramsForBackend;
+    var ops = this.paramsForBackend();
     var res = store.query(modelName, Object.assign({}, ops)); // always create a shallow copy of `ops` in case adapter would mutate the original object
 
     return res;
